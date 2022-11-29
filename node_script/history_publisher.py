@@ -11,7 +11,7 @@ from plug_insert.common import History
 def create_pathmsg(history: History) -> PathMsg:
 
     poses = []
-    for vec in history.rarm_traj:
+    for vec in history.endeffector_traj:
         pos, quat_wxyz = vec[:3], vec[3:]
         quat = wxyz2xyzw(quat_wxyz)
 
@@ -19,11 +19,11 @@ def create_pathmsg(history: History) -> PathMsg:
         quat_msg = Quaternion(*quat)
         pose = Pose(position=pos_msg, orientation=quat_msg)
         pose_stamped = PoseStamped(pose=pose)
-        pose_stamped.header.frame_id = "base_link"
+        pose_stamped.header.frame_id = history.reference_name
         poses.append(pose_stamped)
 
     msg = PathMsg(poses=poses)
-    msg.header.frame_id = "base_link"
+    msg.header.frame_id = history.reference_name
     return msg
 
 

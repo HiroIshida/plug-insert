@@ -6,6 +6,7 @@ from typing import Dict, List, Tuple, overload
 
 import numpy as np
 from mohou_ros_utils.rosbag import bag_to_seqs
+from mohou_ros_utils.utils import CoordinateTransform, chain_transform
 from sensor_msgs.msg import JointState
 from skrobot.coordinates import Coordinates
 from skrobot.coordinates.math import matrix2quaternion
@@ -130,8 +131,8 @@ def coords_to_vec(co: Coordinates) -> np.ndarray:
 class History:
     bag_file_path: Path
     angles_vector_table: Dict[str, List[float]]
-    rarm_traj: Trajectory
-    larm_traj: Trajectory
+    endeffector_traj: Trajectory
+    reference_name: str
 
     @classmethod
     def from_bag(cls, bag_file: Path, n_point: int) -> "History":
@@ -157,12 +158,21 @@ class History:
                 table[j.name].append(j.joint_angle())
 
             co_rarm = pr2.rarm_end_coords.copy_worldcoords()
-            covec_rarm = coords_to_vec(co_rarm)
-            rarm_coords_history.append(covec_rarm)
+            rarm_coords_history.append(co_rarm)
 
             co_larm = pr2.larm_end_coords.copy_worldcoords()
-            covec_larm = coords_to_vec(co_larm)
-            larm_coords_history.append(covec_larm)
+            larm_coords_history.append(co_larm)
+
+        larm_init: Coordinates = larm_coords_history[0]
+        ref_coords = larm_init
+
+        vec_list = []
+        tf_ref_to_base = CoordinateTransform.from_skrobot_coords(ref_coords, "ref", "base")
+        for co in rarm_coords_history:
+            tf_rarm_to_base = CoordinateTransform.from_skrobot_coords(co, "rarm", "base")
+            tf_rarm_to_ref = chain_transform(tf_rarm_to_base, tf_ref_to_base.inverse())
+            co_transformed = tf_rarm_to_ref.to_skrobot_coords()
+            vec_list.append(coords_to_vec(co_transformed))
 
         # FIXME: somehow, when we resample the trajectory, the first
         # point of the trajectory becomes NaN.
@@ -170,12 +180,9 @@ class History:
         # the values are almost static.
         # Sampling +1 points and remove the first one is the adhoc
         # workaround for this problem.
-        tmp = Trajectory(rarm_coords_history).resample(n_point + 1)
+        tmp = Trajectory(vec_list).resample(n_point + 1)
         rarm_ef_traj = Trajectory(tmp._points[1:])
-
-        tmp = Trajectory(larm_coords_history).resample(n_point + 1)
-        larm_ef_traj = Trajectory(tmp._points[1:])
-        return cls(bag_file, table, rarm_ef_traj, larm_ef_traj)
+        return cls(bag_file, table, rarm_ef_traj, "l_gripper_tool_frame")
 
     def dump(self) -> None:
         history_path = self.bag_file_path.parent / (self.bag_file_path.stem + ".history")
