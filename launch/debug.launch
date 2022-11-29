@@ -1,0 +1,7 @@
+<launch>
+  <param name="robot_description" command="$(find xacro)/xacro '$(find pr2_description)/robots/pr2.urdf.xacro' --inorder" />
+  <node pkg="rosbag" type="play" name="player" args="-l --clock $(find plug_insert)/rosbag/latest.bag"/>
+
+  <node name="replay" pkg="rviz" type="rviz"
+    args="-d $(find plug_insert)/config/rvizconf.rviz"/>
+</launch>
