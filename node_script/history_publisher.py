@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-import pickle
 
 import rospy
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from nav_msgs.msg import Path as PathMsg
-from skrobot.coordinates.math import matrix2quaternion, wxyz2xyzw
+from skrobot.coordinates.math import wxyz2xyzw
 
-from plug_insert.common import History, project_path
+from plug_insert.common import History
 
 
 def create_pathmsg(history: History) -> PathMsg:
 
     poses = []
-    for co in history.rarm_coords_history:
-        pos = co.worldpos()
-        quat = wxyz2xyzw(matrix2quaternion(co.worldrot()))
+    for vec in history.rarm_traj:
+        pos, quat_wxyz = vec[:3], vec[3:]
+        quat = wxyz2xyzw(quat_wxyz)
 
         pos_msg = Point(*pos)
         quat_msg = Quaternion(*quat)
@@ -26,6 +25,7 @@ def create_pathmsg(history: History) -> PathMsg:
     msg = PathMsg(poses=poses)
     msg.header.frame_id = "base_link"
     return msg
+
 
 histories = History.load_all()
 msg_list = [create_pathmsg(h) for h in histories]
