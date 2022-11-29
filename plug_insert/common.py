@@ -1,4 +1,3 @@
-from pathlib import Path
 import pickle
 from dataclasses import dataclass
 from logging import getLogger
@@ -14,16 +13,16 @@ from skrobot.models.pr2 import PR2
 
 from rosbag import Bag
 
+logger = getLogger(__name__)
+
 
 def project_path() -> Path:
     return Path("~/.mohou/plug_insert").expanduser()
 
 
-logger = getLogger(__name__)
-
-
 @dataclass
 class History:
+    bag_file_path: Path
     angles_vector_table: Dict[str, List[float]]
     rarm_coords_history: List[Coordinates]
     larm_coords_history: List[Coordinates]
@@ -53,7 +52,22 @@ class History:
             rarm_coords_history.append(pr2.rarm_end_coords.copy_worldcoords())
             larm_coords_history.append(pr2.larm_end_coords.copy_worldcoords())
 
-        return cls(table, rarm_coords_history, larm_coords_history)
+        return cls(bag_file, table, rarm_coords_history, larm_coords_history)
+
+    def dump(self) -> None:
+        history_path = self.bag_file_path.parent / (self.bag_file_path.stem + ".history")
+        with history_path.open(mode="wb") as f:
+            pickle.dump(history, f)
+
+    @classmethod
+    def load_all(cls) -> List["History"]:
+        rosbag_base_path = project_path() / "rosbag"
+        histories = []
+        for p in rosbag_base_path.iterdir():
+            if p.name.endswith(".history"):
+                with p.open(mode="rb") as f:
+                    histories.append(pickle.load(f))
+        return histories
 
 
 if __name__ == "__main__":
@@ -66,7 +80,7 @@ if __name__ == "__main__":
         if not path.name.endswith(".bag"):
             continue
         history = History.from_bag(path, 0.5)
-        history_path = path.parent / (path.stem + ".history")
-        with history_path.open(mode="wb") as f:
-            pickle.dump(history, f)
-        logger.error("dumped history to {}".format(history_path))
+        history.dump()
+
+    histories = history.load_all()
+    print(histories)

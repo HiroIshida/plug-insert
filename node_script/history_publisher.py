@@ -6,7 +6,7 @@ from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from nav_msgs.msg import Path as PathMsg
 from skrobot.coordinates.math import matrix2quaternion, wxyz2xyzw
 
-from plug_insert.common import project_path, History
+from plug_insert.common import History, project_path
 
 
 def create_pathmsg(history: History) -> PathMsg:
@@ -27,14 +27,8 @@ def create_pathmsg(history: History) -> PathMsg:
     msg.header.frame_id = "base_link"
     return msg
 
-
-rosbag_path = project_path() / "rosbag"
-msg_list = []
-for path in rosbag_path.iterdir():
-    if path.name.endswith(".history"):
-        with path.open(mode="rb") as f:
-            history: History = pickle.load(f)
-            msg_list.append(create_pathmsg(history))
+histories = History.load_all()
+msg_list = [create_pathmsg(h) for h in histories]
 
 pub = rospy.Publisher("history", PathMsg, queue_size=10)
 rospy.init_node("history_publisher", anonymous=True)
