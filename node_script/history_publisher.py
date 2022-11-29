@@ -6,8 +6,7 @@ from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from nav_msgs.msg import Path as PathMsg
 from skrobot.coordinates.math import matrix2quaternion, wxyz2xyzw
 
-from plug_insert.common import project_path
-from plug_insert.relative import History
+from plug_insert.common import project_path, History
 
 
 def create_pathmsg(history: History) -> PathMsg:
