@@ -8,8 +8,8 @@ import numpy as np
 from mohou_ros_utils.rosbag import bag_to_seqs
 from mohou_ros_utils.utils import CoordinateTransform, chain_transform
 from sensor_msgs.msg import JointState
-from skrobot.coordinates import Coordinates
-from skrobot.coordinates.math import matrix2quaternion
+from skrobot.coordinates import Coordinates, rpy_matrix
+from skrobot.coordinates.math import rpy_angle
 from skrobot.model.joint import Joint
 from skrobot.models.pr2 import PR2
 
@@ -119,19 +119,22 @@ class Trajectory:
 
 
 def coords_to_vec(co: Coordinates) -> np.ndarray:
-    """
-    pos + [w, x, y, z]
-    """
     pos = co.worldpos()
-    quat = matrix2quaternion(co.worldrot())
-    return np.hstack([pos, quat])
+    ypr = rpy_angle(co.worldrot())[0]
+    return np.hstack([pos, ypr])
+
+
+def vec_to_coords(vec: np.ndarray) -> Coordinates:
+    pos, ypr = vec[:3], vec[3:]
+    mat = rpy_matrix(*ypr)
+    return Coordinates(pos=pos, rot=mat)
 
 
 @dataclass
 class History:
     bag_file_path: Path
     angles_vector_table: Dict[str, List[float]]
-    endeffector_traj: Trajectory
+    tf_rarm2ref_list: List[CoordinateTransform]
     reference_name: str
 
     @classmethod
@@ -182,7 +185,14 @@ class History:
         # workaround for this problem.
         tmp = Trajectory(vec_list).resample(n_point + 1)
         rarm_ef_traj = Trajectory(tmp._points[1:])
-        return cls(bag_file, table, rarm_ef_traj, "l_gripper_tool_frame")
+
+        # back to transforms again
+        tf_list = []
+        for vec in rarm_ef_traj:
+            co = vec_to_coords(vec)
+            tf = CoordinateTransform.from_skrobot_coords(co, "rarm", "ref")
+            tf_list.append(tf)
+        return cls(bag_file, table, tf_list, "l_gripper_tool_frame")
 
     def dump(self) -> None:
         history_path = self.bag_file_path.parent / (self.bag_file_path.stem + ".history")
