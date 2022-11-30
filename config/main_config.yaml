@@ -17,7 +17,7 @@ topic:
         use: True
 
 additional_topics:  # use for debug
-    - /kinect_head/depth_registered/quater/points
+    - /relative_pose
 
 control_joints:
     - r_shoulder_pan_joint 
