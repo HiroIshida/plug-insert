@@ -1,5 +1,6 @@
 main.py
 tmp.py
+*tmp.py
 
 # other stuff
 *.new

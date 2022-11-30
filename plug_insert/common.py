@@ -5,9 +5,9 @@ from typing import List
 
 import numpy as np
 from geometry_msgs.msg import PoseStamped
+from mohou_ros_utils.config import Config
 from mohou_ros_utils.rosbag import bag_to_seqs
-from skrobot.coordinates import Coordinates, rpy_matrix
-from skrobot.coordinates.math import rpy_angle
+from skrobot.models.pr2 import PR2
 
 from rosbag import Bag
 
@@ -16,20 +16,12 @@ def project_path() -> Path:
     return Path("~/.mohou/plug_insert").expanduser()
 
 
-class InvalidSamplePointError(Exception):
-    pass
-
-
-def coords_to_vec(co: Coordinates) -> np.ndarray:
-    pos = co.worldpos()
-    ypr = rpy_angle(co.worldrot())[1]
-    return np.hstack([pos, ypr])
-
-
-def vec_to_coords(vec: np.ndarray) -> Coordinates:
-    pos, ypr = vec[:3], vec[3:]
-    mat = rpy_matrix(*ypr)
-    return Coordinates(pos=pos, rot=mat)
+def set_to_homeposition(robot: PR2):
+    path = project_path()
+    config = Config.from_project_path(path)
+    assert config.home_position is not None
+    for name, value in config.home_position.items():
+        robot.__dict__[name].joint_angle(value)
 
 
 @dataclass
