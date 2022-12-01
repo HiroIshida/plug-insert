@@ -1,7 +1,7 @@
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from geometry_msgs.msg import PoseStamped
@@ -26,7 +26,7 @@ def set_to_homeposition(robot: PR2):
 
 @dataclass
 class History:
-    bag_file_path: Path
+    bag_file_path: Optional[Path]
     pose_list: List[PoseStamped]
 
     @classmethod
@@ -69,6 +69,7 @@ class History:
         return cls(bag_file, pose_list_resampled)
 
     def dump(self) -> None:
+        assert self.bag_file_path is not None
         history_path = self.bag_file_path.parent / (self.bag_file_path.stem + ".history")
         with history_path.open(mode="wb") as f:
             pickle.dump(self, f)
