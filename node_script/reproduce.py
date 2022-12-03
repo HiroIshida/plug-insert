@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import time
 from typing import List, Optional
 
@@ -14,6 +15,7 @@ from skrobot.models.pr2 import PR2
 from skrobot.viewers import TrimeshSceneViewer
 
 from plug_insert.common import History
+from plug_insert.descriptor import Descriptor
 
 
 def solve_inverse_kinematics(robot: PR2, control_joint_names: List[str], co: Coordinates) -> bool:
@@ -40,49 +42,57 @@ def get_ref2base() -> CoordinateTransform:
     return ref_to_base
 
 
-rospy.init_node("reproducer")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dryrun", action="store_true", help="dryrun")
+    args = parser.parse_args()
+    dryrun: bool = args.dryrun
 
-listener = tf.TransformListener()
-histories = History.load_all()
-history = histories[0]
+    rospy.init_node("reproducer")
 
-tf_ref2base = get_ref2base()
-co_list: List[Coordinates] = []
-for pose_ef2ref in history.pose_list:
-    tf_ef2ref = CoordinateTransform.from_ros_pose(pose_ef2ref.pose)
-    tf_ef2base = chain_transform(tf_ef2ref, tf_ref2base)
-    co_list.append(tf_ef2base.to_skrobot_coords())
+    listener = tf.TransformListener()
+    histories = History.load_all()
+    # history = histories[3]
 
-joint_names = [
-    "r_shoulder_pan_joint",
-    "r_shoulder_lift_joint",
-    "r_upper_arm_roll_joint",
-    "r_elbow_flex_joint",
-    "r_forearm_roll_joint",
-    "r_wrist_flex_joint",
-    "r_wrist_roll_joint",
-]
+    desc = Descriptor.from_histories(histories)
+    transform_list = desc.sample()
 
-robot = PR2()
-ri = PR2ROSRobotInterface(robot)
-robot.angle_vector(ri.angle_vector())
+    co_list: List[Coordinates] = []
+    tf_ref2base = get_ref2base()
+    for transform in transform_list:
+        tf_ef2ref = transform
+        tf_ef2base = chain_transform(tf_ef2ref, tf_ref2base)
+        co_list.append(tf_ef2base.to_skrobot_coords())
 
-dryrun = False
-if dryrun:
-    viewer = TrimeshSceneViewer()
-    viewer.add(robot)
-    for co in co_list:
-        viewer.add(Axis.from_coords(co, axis_radius=0.005, axis_length=0.01))
-    viewer.show()
-    time.sleep(2)
+    joint_names = [
+        "r_shoulder_pan_joint",
+        "r_shoulder_lift_joint",
+        "r_upper_arm_roll_joint",
+        "r_elbow_flex_joint",
+        "r_forearm_roll_joint",
+        "r_wrist_flex_joint",
+        "r_wrist_roll_joint",
+    ]
 
-    for co in co_list:
-        assert solve_inverse_kinematics(robot, joint_names, co)
-        viewer.redraw()
-        time.sleep(0.3)
-else:
-    for co in co_list:
-        print(co)
-        assert solve_inverse_kinematics(robot, joint_names, co)
-        ri.angle_vector(robot.angle_vector(), time=0.3, time_scale=1.0)
-        time.sleep(0.5)
+    robot = PR2()
+    ri = PR2ROSRobotInterface(robot)
+    robot.angle_vector(ri.angle_vector())
+
+    if dryrun:
+        viewer = TrimeshSceneViewer()
+        viewer.add(robot)
+        for co in co_list:
+            viewer.add(Axis.from_coords(co, axis_radius=0.005, axis_length=0.01))
+        viewer.show()
+        time.sleep(2)
+
+        for co in co_list:
+            assert solve_inverse_kinematics(robot, joint_names, co)
+            viewer.redraw()
+            time.sleep(0.3)
+    else:
+        for co in co_list:
+            print(co)
+            assert solve_inverse_kinematics(robot, joint_names, co)
+            ri.angle_vector(robot.angle_vector(), time=0.5, time_scale=1.0)
+            time.sleep(0.5)

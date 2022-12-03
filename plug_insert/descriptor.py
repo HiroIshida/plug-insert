@@ -31,9 +31,19 @@ def temp_seed(seed):
 
 
 @dataclass
+class DummyPCA:
+    def transform(self, x):
+        return x
+
+    def inverse_transform(self, x):
+        return x
+
+
+@dataclass
 class Descriptor:
     pca: PCA
     cov: np.ndarray
+    encoded: List[np.ndarray]
     n_bottleneck: int
     header: Header
     ref_mat: np.ndarray
@@ -58,7 +68,7 @@ class Descriptor:
                 cotra = CoordinateTransform.from_ros_pose(pose.pose)
                 cotra.rot = cotra.rot.dot(ref_mat)
                 trans, quat_xyzw = cotra.to_ros_transform()
-                rpy = quaternion2rpy(xyzw2wxyz(quat_xyzw))[1]
+                rpy = quaternion2rpy(xyzw2wxyz(quat_xyzw))[0]
                 vec = np.hstack((trans, rpy))
                 vec_seq.append(vec)
             traj_vec = np.array(vec_seq).flatten()
@@ -67,13 +77,22 @@ class Descriptor:
         arr = np.array(traj_vec_list)
         pca = PCA(n_components=n_bottleneck)
         pca.fit(arr)
+        # pca = DummyPCA()
+        encoded = pca.transform(arr)
 
         Z = pca.transform(np.array(traj_vec_list))
         cov = np.cov(Z.T)
-        return cls(pca, cov, n_bottleneck, header, ref_mat)
+        return cls(pca, cov, encoded, n_bottleneck, header, ref_mat)
 
     def sample(self) -> List[CoordinateTransform]:
         p = np.random.multivariate_normal(np.zeros(self.n_bottleneck), self.cov)
+        return self._inverse(p)
+
+    def reproduce(self, idx: int) -> List[CoordinateTransform]:
+        p = self.encoded[idx]
+        return self._inverse(p)
+
+    def _inverse(self, p) -> List[CoordinateTransform]:
         traj_vec = self.pca.inverse_transform(p)
         traj_arr = traj_vec.reshape((-1, 6))
         transform_list = []
@@ -89,9 +108,13 @@ class Descriptor:
 
 
 if __name__ == "__main__":
-    desc = Descriptor.from_histories(History.load_all())
+    hs = History.load_all()
+    desc = Descriptor.from_histories(hs)
+    # transform_list = desc.reproduce(0)
     transform_list = desc.sample()
     viewer = TrimeshSceneViewer()
+
+    # transform_list = [CoordinateTransform.from_ros_pose(p.pose) for p in hs[0].pose_list]
 
     for transform in transform_list:
         co = transform.to_skrobot_coords()
