@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="plug_insert" name="larm_transform_publisher" type="larm_transform_publisher.py"/>
+    <node pkg="plug_insert" name="relative_pose_publisher" type="relative_pose_publisher.py"/>
+    <node pkg="mohou_ros" name="vive_controller" type="vive_controller_pr2.py" args="-pn plug_insert -scale 0.5"/>
+</launch>
